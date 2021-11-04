@@ -75,11 +75,11 @@ def create_spatialtis_folder(output_folder: File) -> None:
 
 def panel_csv_checker(panel_csv: File, metal_column: str) -> Path:
     panel_csv = Path(panel_csv)
-    checked_csv = panel_csv.parent / f"{p.stem}_checked.csv"
+    checked_csv = panel_csv.parent / f"{panel_csv.stem}_checked.csv"
 
     meta = pd.read_csv(panel_csv)
-    meta['channel_number'] = [int(re.search(r'\d.*', i)[0]) for i in meta[metal_column]]
-    meta['metal_name'] = [re.search(r'[a-zA-Z]{2}', i)[0] for i in meta[metal_column]]
+    meta['channel_number'] = [int(re.search(r'\d*', i)[0]) for i in meta[metal_column]]
+    meta['metal_name'] = [re.search(r'[a-zA-Z].*', i)[0] for i in meta[metal_column]]
     meta = meta.sort_values('channel_number')
     meta[metal_column] = [m + str(c) for m, c in meta[['metal_name', 'channel_number']].values]
 
