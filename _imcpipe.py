@@ -1,15 +1,20 @@
-from pathlib import Path
-import shutil
+import os
 import re
+import shutil
+from pathlib import Path
 from typing import Union, List, Tuple
+from urllib.request import urlopen
 
 import pandas as pd
-import pylab as p
+from PIL import Image
 from imctools.converters import ome2analysis
 from imctools.io.imc.imcwriter import ImcWriter
 from imctools.io.mcd.mcdparser import McdParser
 
 File = Union[Path, str]
+
+CP_PIPE1 = "https://raw.githubusercontent.com/Mr-Milk/IMC-Analysis-Pipeline/main/cp4-pipe/1-prepare-ilastik.cppipe"
+CP_PIPE2 = "https://raw.githubusercontent.com/Mr-Milk/IMC-Analysis-Pipeline/main/cp4-pipe/2-segment_ilastik.cppipe"
 
 
 def generate_scaffold(output_folder: File) -> None:
@@ -20,6 +25,11 @@ def generate_scaffold(output_folder: File) -> None:
     """
     for i in ['ilastik', 'info', 'analysis', 'spatialtis', 'cp_pipelines']:
         (output_folder / Path(i)).mkdir(exist_ok=True, parents=True)
+
+    for url, pipe in zip([CP_PIPE1, CP_PIPE2], ["1-prepare-ilastik.cppipe", "2-segment_ilastik.cppipe"]):
+        response = urlopen(url).read().decode('utf-8')
+        with open(output_folder / 'cp_pipelines' / pipe, "w") as dest_file:
+            dest_file.write(response)
 
 
 def mcdfile2ome(mcdfile: File) -> Path:
@@ -37,7 +47,8 @@ def mcd2analysis(mcdfiles: List,
                  output_folder: File,
                  panel_csv: File,
                  analysis_stacks: Tuple,
-                 metal_column: str
+                 metal_column: str,
+                 low_dim_filter: int = 200,
                  ) -> None:
     output_folder = Path(output_folder)
     analysis_folder = output_folder / 'analysis'
@@ -57,6 +68,15 @@ def mcd2analysis(mcdfiles: List,
     fn = next(analysis_folder.glob(f'*{analysis_stacks[1][1]}.csv'))
     shutil.copy(fn, info_folder / 'full_channelmeta.csv')
 
+    for img in (output_folder / 'analysis').glob("*.tiff"):
+        (w, h) = Image.open(img).size
+        if (w <= low_dim_filter) & (h < low_dim_filter):
+            try:
+                os.remove(img)
+                os.remove(f"{'/'.join(img.parts[0:-1])}/{img.stem}.csv")
+            except Exception as e:
+                pass
+
 
 def create_spatialtis_folder(output_folder: File) -> None:
     output_folder = Path(output_folder)
@@ -75,7 +95,7 @@ def create_spatialtis_folder(output_folder: File) -> None:
 
 def panel_csv_checker(panel_csv: File, metal_column: str) -> Path:
     panel_csv = Path(panel_csv)
-    checked_csv = panel_csv.parent / f"{p.stem}_checked.csv"
+    checked_csv = panel_csv.parent / f"{panel_csv.stem}_checked.csv"
 
     meta = pd.read_csv(panel_csv)
     meta['channel_number'] = [int(re.search(r'\d.*', i)[0]) for i in meta[metal_column]]
